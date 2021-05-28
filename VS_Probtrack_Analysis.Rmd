@@ -1,0 +1,504 @@
+---
+title: "VS Probtrack Analysis"
+author: "Julianna Calabrese & Leigh Gayle Goetschius"
+date: 'Date of Last Edit: `r format(Sys.time(), "%d %B, %Y")`'
+output:
+  html_document:
+    toc: TRUE 
+    toc_float: TRUE 
+---
+
+```{r setup and load packages, include=FALSE}
+library(foreign); # For reading in the data.
+library(car); # For checking regression diagnostics
+library(gvlma); # Global test of assumptions.
+library(ggplot2);
+library(ggrepel);
+library(moments);
+library(MASS);
+library(Hmisc);
+library(kableExtra);
+library(lmtest);
+library(QuantPsyc);
+library(apaTables);
+
+library(tidyverse);
+```
+
+### R Version Used
+```{r}
+R.version.string
+```
+
+```{r package organization, include=FALSE}
+# Organizing package information for table
+packages <- c("foreign", "car","gvlma","ggplot2","ggrepel","moments","MASS","Hmisc","kableExtra","tidyverse")
+display <- c("Package","Title", "Maintainer", "Version", "URL")
+table <- matrix(NA, 1, NROW(display), dimnames = list(1, display))
+for(i in 1:NROW(packages)){
+list <- packageDescription(packages[i])
+table <- rbind(table, matrix(unlist(list[c(display)]), 1, NROW(display), byrow = T))
+}
+table[,NROW(display)] <- stringr::str_extract(table[,NROW(display)], ".+,")
+
+
+```
+#### Packages Used
+```{r}
+# Table of packages
+kable(table[-1,], format = "html", align = "c") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+
+
+#### Read in Data
+```{r}
+
+data = read_csv('/Users/leighgoetschius/Box Sync/VS_Probtrack_Analysis/Manuscript/Data&Analysis/VSProbtrack_VSActivation_Demos_042219.csv')
+
+```
+
+
+# Checking the skewness/kurtosis of individual variables. 
+
+```{r}
+skewness(data$LVSBA9) #>3
+skewness(data$LVSBA10)
+skewness(data$LVSBA11)
+skewness(data$LVSBA13)
+skewness(data$LVSBA24)
+skewness(data$LVSBA25)
+skewness(data$LVSBA32)
+skewness(data$LVSBA47)
+
+skewness(data$RVSBA9) # >3
+skewness(data$RVSBA10)
+skewness(data$RVSBA11)
+skewness(data$RVSBA13)
+skewness(data$RVSBA24)
+skewness(data$RVSBA25)
+skewness(data$RVSBA32)
+skewness(data$RVSBA47)
+
+kurtosis(data$LVSBA9) # > 10
+kurtosis(data$LVSBA10)
+kurtosis(data$LVSBA11)
+kurtosis(data$LVSBA13)
+kurtosis(data$LVSBA24)
+kurtosis(data$LVSBA25)
+kurtosis(data$LVSBA32)
+kurtosis(data$LVSBA47)
+
+kurtosis(data$RVSBA9) # > 10
+kurtosis(data$RVSBA10)
+kurtosis(data$RVSBA11)
+kurtosis(data$RVSBA13)
+kurtosis(data$RVSBA24)
+kurtosis(data$RVSBA25)
+kurtosis(data$RVSBA32)
+kurtosis(data$RVSBA47)
+
+```
+
+Based on the above analyses, BA9 seems to be the weird one, in both hemispheres. I wonder, if I take that track out and then see if the data meet that global assumption. I know that AB said that's not a great indicator, but it would be nice to satisfy. 
+
+I'll create the subset of the data with just the tracks -- maybe I should create and right and a left hemisphere ones because those would be the ones I'm worried about. Yes, let's do that.
+
+```{r}
+L_vars = c("LVSBA10","LVSBA11","LVSBA13","LVSBA24","LVSBA25","LVSBA32","LVSBA47")
+R_vars = c("RVSBA10","RVSBA11","RVSBA13","RVSBA24","RVSBA25","RVSBA32","RVSBA47")
+
+L_data = data[L_vars]
+R_data = data[R_vars]
+```
+
+```{r}
+rcorr(as.matrix(L_data))
+```
+
+```{r}
+rcorr(as.matrix(R_data))
+```
+
+Well, that's positive -- it doesn't seem like there are any crazy high correlations between variables. That's good! There are definitely some associations (e.g. between BA47 and BA13), but they're all below .5. 
+
+
+```{r}
+clean.data = data[ which(data$Nonconverged=='0'),]
+```
+
+
+#### Testing for Extreme Outliers
+
+```{r}
+
+FindOutliers <- function(data) {
+  lowerq = quantile(data, na.rm = TRUE)[2]
+  upperq = quantile(data, na.rm = TRUE)[4]
+  iqr = upperq - lowerq #Or use IQR(data)
+  # we identify extreme outliers
+  extreme.threshold.upper = (iqr * 3) + upperq
+  extreme.threshold.lower = lowerq - (iqr * 3)
+  result <- which(data > extreme.threshold.upper | data < extreme.threshold.lower)
+}
+
+```
+
+```{r}
+
+LBA10_Outliers = FindOutliers(clean.data$LVSBA10); LBA10_Outliers
+LBA11_Outliers = FindOutliers(clean.data$LVSBA11); LBA11_Outliers
+LBA13_Outliers = FindOutliers(clean.data$LVSBA13); LBA13_Outliers
+LBA24_Outliers = FindOutliers(clean.data$LVSBA24); LBA24_Outliers
+LBA25_Outliers = FindOutliers(clean.data$LVSBA25); LBA25_Outliers
+LBA32_Outliers = FindOutliers(clean.data$LVSBA32); LBA32_Outliers
+LBA47_Outliers = FindOutliers(clean.data$LVSBA47); LBA47_Outliers
+
+
+
+```
+
+```{r}
+
+RBA10_Outliers = FindOutliers(clean.data$RVSBA10); RBA10_Outliers
+RBA11_Outliers = FindOutliers(clean.data$RVSBA11); RBA11_Outliers
+RBA13_Outliers = FindOutliers(clean.data$RVSBA13); RBA13_Outliers
+RBA24_Outliers = FindOutliers(clean.data$RVSBA24); RBA24_Outliers
+RBA25_Outliers = FindOutliers(clean.data$RVSBA25); RBA25_Outliers
+RBA32_Outliers = FindOutliers(clean.data$RVSBA32); RBA32_Outliers
+RBA47_Outliers = FindOutliers(clean.data$RVSBA47); RBA47_Outliers
+
+
+```
+
+
+
+```{r}
+clean.data= clean.data %>% 
+  mutate(sex = case_when(
+    Gender_0F_1M == 0 ~ 'Female',
+    Gender_0F_1M == 1 ~ 'Male',
+    TRUE ~ 'NA'),
+    RaceEthnicity = case_when(
+    EthnoRace_3cat_1AA_2C_3O == 1 ~ 'African American',
+    EthnoRace_3cat_1AA_2C_3O == 2 ~ 'White',
+    EthnoRace_3cat_1AA_2C_3O == 3 ~ 'Other',
+    TRUE ~ 'NA')
+  )
+
+table1::label(clean.data$sex) = "Sex"
+table1::label(clean.data$RaceEthnicity) = "Race-Ethnicity"
+table1::label(clean.data$puberty_score) = "Pubertal Development"
+table1::label(clean.data$Age_Years) = "Age"
+
+table1::table1(~sex + RaceEthnicity + puberty_score + Age_Years, data = clean.data)
+
+```
+
+```{r}
+FacesData = clean.data[ which(clean.data$Faces_Data=='1'),]
+MIDData = clean.data[ which(clean.data$MID_Data=='1'),]
+```
+
+```{r}
+table1::table1(~sex + RaceEthnicity + puberty_score + Age_Years, data = FacesData)
+```
+
+```{r}
+table1::table1(~sex + RaceEthnicity + puberty_score + Age_Years, data = MIDData)
+```
+
+
+# Objective 1 - General Probtrack Analysis
+
+## T-tests against 0
+
+### Left Hemisphere
+```{r}
+
+t.test(clean.data$LVSBA10)
+t.test(clean.data$LVSBA11)
+t.test(clean.data$LVSBA13)
+t.test(clean.data$LVSBA24)
+t.test(clean.data$LVSBA25)
+t.test(clean.data$LVSBA32)
+t.test(clean.data$LVSBA47)
+
+```
+
+```{r}
+describe(clean.data$LVSBA10)
+describe(clean.data$LVSBA11)
+describe(clean.data$LVSBA13)
+describe(clean.data$LVSBA24)
+describe(clean.data$LVSBA25)
+describe(clean.data$LVSBA32)
+describe(clean.data$LVSBA47)
+```
+
+
+### Right Hemisphere
+
+```{r}
+
+t.test(clean.data$RVSBA10)
+t.test(clean.data$RVSBA11)
+t.test(clean.data$RVSBA13)
+t.test(clean.data$RVSBA24)
+t.test(clean.data$RVSBA25)
+t.test(clean.data$RVSBA32)
+t.test(clean.data$RVSBA47)
+
+```
+
+```{r}
+describe(clean.data$RVSBA10)
+describe(clean.data$RVSBA11)
+describe(clean.data$RVSBA13)
+describe(clean.data$RVSBA24)
+describe(clean.data$RVSBA25)
+describe(clean.data$RVSBA32)
+describe(clean.data$RVSBA47)
+```
+
+
+## T-tests Against Each Other
+
+### Left Hemisphere
+```{r}
+
+t.test(clean.data$LVSBA10, clean.data$LVSBA11) # 11 > 10
+t.test(clean.data$LVSBA10, clean.data$LVSBA13) # 13 > 10
+t.test(clean.data$LVSBA10, clean.data$LVSBA24) # 10 > 24
+t.test(clean.data$LVSBA10, clean.data$LVSBA25) # 25 > 10
+t.test(clean.data$LVSBA10, clean.data$LVSBA32) # 32 > 10
+t.test(clean.data$LVSBA10, clean.data$LVSBA47) # 47 > 10
+
+t.test(clean.data$LVSBA11, clean.data$LVSBA13) # 13 > 11
+t.test(clean.data$LVSBA11, clean.data$LVSBA24) # 11 > 24
+t.test(clean.data$LVSBA11, clean.data$LVSBA25) # 25 > 11
+t.test(clean.data$LVSBA11, clean.data$LVSBA32) # 32 > 11
+t.test(clean.data$LVSBA11, clean.data$LVSBA47) # 47 > 11
+
+t.test(clean.data$LVSBA13, clean.data$LVSBA24) # 13 > 24
+t.test(clean.data$LVSBA13, clean.data$LVSBA25) # 13 > 25
+t.test(clean.data$LVSBA13, clean.data$LVSBA32) # 13 > 32
+t.test(clean.data$LVSBA13, clean.data$LVSBA47) # 13 > 47
+
+t.test(clean.data$LVSBA24, clean.data$LVSBA25) # 25 > 24
+t.test(clean.data$LVSBA24, clean.data$LVSBA32) # 32 > 24
+t.test(clean.data$LVSBA24, clean.data$LVSBA47) # 47 > 24
+
+t.test(clean.data$LVSBA25, clean.data$LVSBA32) # 25 > 32
+t.test(clean.data$LVSBA25, clean.data$LVSBA47) # 47 > 25
+
+t.test(clean.data$LVSBA32, clean.data$LVSBA47) # 32 > 47
+
+```
+
+### Right Hemisphere
+```{r}
+t.test(clean.data$RVSBA10, clean.data$RVSBA11) # 11 > 10
+t.test(clean.data$RVSBA10, clean.data$RVSBA13) # 13 > 10
+t.test(clean.data$RVSBA10, clean.data$RVSBA24) # 24 > 10 (0.0027)
+t.test(clean.data$RVSBA10, clean.data$RVSBA25) # 25 > 10
+t.test(clean.data$RVSBA10, clean.data$RVSBA32) # 32 > 10
+t.test(clean.data$RVSBA10, clean.data$RVSBA47) # 47 > 10
+
+t.test(clean.data$RVSBA11, clean.data$RVSBA13) # 13 > 11
+t.test(clean.data$RVSBA11, clean.data$RVSBA24) # 11 > 24
+t.test(clean.data$RVSBA11, clean.data$RVSBA25) # 25 > 11
+t.test(clean.data$RVSBA11, clean.data$RVSBA32) # 32 > 11
+t.test(clean.data$RVSBA11, clean.data$RVSBA47) # 47 > 11
+
+t.test(clean.data$RVSBA13, clean.data$RVSBA24) # 13 > 24
+t.test(clean.data$RVSBA13, clean.data$RVSBA25) # 25 > 13
+t.test(clean.data$RVSBA13, clean.data$RVSBA32) # 32 > 13
+t.test(clean.data$RVSBA13, clean.data$RVSBA47) # 47 > 13
+
+t.test(clean.data$RVSBA24, clean.data$RVSBA25) # 25 > 24
+t.test(clean.data$RVSBA24, clean.data$RVSBA32) # 32 > 24
+t.test(clean.data$RVSBA24, clean.data$RVSBA47) # 47 > 24
+
+t.test(clean.data$RVSBA25, clean.data$RVSBA32) # 25 > 32
+t.test(clean.data$RVSBA25, clean.data$RVSBA47) # 25 > 47
+
+t.test(clean.data$RVSBA32, clean.data$RVSBA47) # NS Difference
+```
+
+
+## Correlations with covariates
+
+```{r}
+cor.test(clean.data$LVSBA10, clean.data$puberty_score)
+cor.test(clean.data$LVSBA11, clean.data$puberty_score)
+cor.test(clean.data$LVSBA13, clean.data$puberty_score)
+cor.test(clean.data$LVSBA24, clean.data$puberty_score)
+cor.test(clean.data$LVSBA25, clean.data$puberty_score)
+cor.test(clean.data$LVSBA32, clean.data$puberty_score)
+cor.test(clean.data$LVSBA47, clean.data$puberty_score)
+
+cor.test(clean.data$LVSBA10, clean.data$Gender_0F_1M)
+cor.test(clean.data$LVSBA11, clean.data$Gender_0F_1M)
+cor.test(clean.data$LVSBA13, clean.data$Gender_0F_1M)
+cor.test(clean.data$LVSBA24, clean.data$Gender_0F_1M)
+cor.test(clean.data$LVSBA25, clean.data$Gender_0F_1M)
+cor.test(clean.data$LVSBA32, clean.data$Gender_0F_1M)
+cor.test(clean.data$LVSBA47, clean.data$Gender_0F_1M)
+
+cor.test(clean.data$LVSBA10, clean.data$Internalizing) # Pos correlated with Internalizing - p=0.010
+cor.test(clean.data$LVSBA11, clean.data$Internalizing)
+cor.test(clean.data$LVSBA13, clean.data$Internalizing)
+cor.test(clean.data$LVSBA24, clean.data$Internalizing)
+cor.test(clean.data$LVSBA25, clean.data$Internalizing)
+cor.test(clean.data$LVSBA32, clean.data$Internalizing)
+cor.test(clean.data$LVSBA47, clean.data$Internalizing)
+
+
+cor.test(clean.data$RVSBA10, clean.data$puberty_score)
+cor.test(clean.data$RVSBA11, clean.data$puberty_score)
+cor.test(clean.data$RVSBA13, clean.data$puberty_score)
+cor.test(clean.data$RVSBA24, clean.data$puberty_score)
+cor.test(clean.data$RVSBA25, clean.data$puberty_score)
+cor.test(clean.data$RVSBA32, clean.data$puberty_score)
+cor.test(clean.data$RVSBA47, clean.data$puberty_score)
+
+cor.test(clean.data$RVSBA10, clean.data$Gender_0F_1M) # Correlated with Gender (lower in males) p=0.035
+cor.test(clean.data$RVSBA11, clean.data$Gender_0F_1M)
+cor.test(clean.data$RVSBA13, clean.data$Gender_0F_1M)
+cor.test(clean.data$RVSBA24, clean.data$Gender_0F_1M)
+cor.test(clean.data$RVSBA25, clean.data$Gender_0F_1M) # Correlated with Gender (lower in males) p=0.007
+cor.test(clean.data$RVSBA32, clean.data$Gender_0F_1M)
+cor.test(clean.data$RVSBA47, clean.data$Gender_0F_1M)
+
+cor.test(clean.data$RVSBA10, clean.data$Internalizing)
+cor.test(clean.data$RVSBA11, clean.data$Internalizing)
+cor.test(clean.data$RVSBA13, clean.data$Internalizing)
+cor.test(clean.data$RVSBA24, clean.data$Internalizing)
+cor.test(clean.data$RVSBA25, clean.data$Internalizing) # Pos correlated with Internalizing p =0.040
+cor.test(clean.data$RVSBA32, clean.data$Internalizing) # Pos correlated with Internalizing p =0.043
+cor.test(clean.data$RVSBA47, clean.data$Internalizing)
+```
+## Zero-order correlation table 
+```{r, eval=FALSE}
+CorTable = clean.data %>% 
+  dplyr::select(LVSBA10, LVSBA11, LVSBA13, LVSBA24, LVSBA25, LVSBA32, LVSBA47,RVSBA10, RVSBA11, RVSBA13, RVSBA24, RVSBA25, RVSBA32, RVSBA47, Gender_0F_1M, puberty_score)
+
+apa.cor.table(CorTable, filename = '/Users/leighgoetschius/Box Sync/VS_Probtrack_Analysis/Manuscript/Data&Analysis/cor_table_030321.doc', table.number = NA,
+  show.conf.interval = FALSE, landscape = TRUE)
+```
+
+
+# Objective 2: Predicting VS Activation from Probtrack Data
+
+
+## VS Activation to Reward Anticipation
+
+### Left Hemisphere
+
+```{r}
+
+summary(lm(LVS_RA_RW ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47, data = clean.data))
+
+nocov_LVS_MID = lm(LVS_RA_RW ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47, data = clean.data);
+lm.beta(nocov_LVS_MID)
+
+summary(lm(LVS_RA_RW ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47 + puberty_score + Gender_0F_1M, data = clean.data))
+LVS_MID_Cov = lm(LVS_RA_RW ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47 + puberty_score + Gender_0F_1M, data = clean.data)
+lm.beta(LVS_MID_Cov)
+
+summary(lm(LVS_RA_RW ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47 + puberty_score + Gender_0F_1M +  Internalizing, data = clean.data))
+LVS_MID = lm(LVS_RA_RW ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47 + puberty_score + Gender_0F_1M, data = clean.data)
+lm.beta(LVS_MID)
+
+```
+
+#### Checking Residuals
+
+```{r}
+plot(nocov_LVS_MID$residuals)
+mean(nocov_LVS_MID$residuals) # the mean of the residuals are zero
+t.test(nocov_LVS_MID$residuals)
+
+par(family = 'serif')
+qqnorm(nocov_LVS_MID$residuals, frame.plot = FALSE, main=NULL, cex.lab = 1.5, font.lab=2)
+```
+
+
+
+### Right Hemisphere
+
+```{r}
+summary(lm(RVS_RA_RW ~ RVSBA10 + RVSBA11 + RVSBA13 + RVSBA24 + RVSBA25 + RVSBA32 + RVSBA47, data = clean.data))
+```
+
+
+## VS Activation to Happy Faces
+
+### Left Hemisphere  
+
+```{r}
+summary(lm(LVS_0005 ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47, data = clean.data))
+
+
+nocov_LVS_Faces = lm(LVS_0005 ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47, data = clean.data)
+lm.beta(nocov_LVS_Faces)
+
+summary(lm(LVS_0005 ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47 + puberty_score + Gender_0F_1M, data = clean.data))
+
+summary(lm(LVS_0005 ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47 + puberty_score + Gender_0F_1M + Internalizing, data = clean.data))
+LVS_Faces = lm(LVS_0005 ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47 + puberty_score + Gender_0F_1M, data = clean.data)
+lm.beta(LVS_Faces)
+
+```
+
+#### Checking Residuals  
+
+```{r}
+plot(nocov_LVS_Faces$residuals)
+mean(nocov_LVS_Faces$residuals) # the mean of the residuals are zero
+t.test(nocov_LVS_Faces$residuals)
+
+par(family = 'serif')
+qqnorm(nocov_LVS_Faces$residuals, frame.plot = FALSE, main=NULL, cex.lab = 1.5, font.lab=2)
+```
+
+### Right Hemisphere  
+
+```{r}
+
+summary(lm(RVS_0005 ~ RVSBA10 + RVSBA11 + RVSBA13 + RVSBA24 + RVSBA25 + RVSBA32 + RVSBA47, data = clean.data))
+nocov_RVS_Faces = lm(RVS_0005 ~ RVSBA10 + RVSBA11 + RVSBA13 + RVSBA24 + RVSBA25 + RVSBA32 + RVSBA47, data = clean.data)
+lm.beta(nocov_RVS_Faces)
+
+summary(lm(RVS_0005 ~ RVSBA10 + RVSBA11 + RVSBA13 + RVSBA24 + RVSBA25 + RVSBA32 + RVSBA47 + puberty_score + Gender_0F_1M, data = clean.data))
+
+summary(lm(RVS_0005 ~ RVSBA10 + RVSBA11 + RVSBA13 + RVSBA24 + RVSBA25 + RVSBA32 + RVSBA47 + puberty_score + Gender_0F_1M + Internalizing, data = clean.data))
+RVS_Faces = lm(RVS_0005 ~ RVSBA10 + RVSBA11 + RVSBA13 + RVSBA24 + RVSBA25 + RVSBA32 + RVSBA47 + puberty_score + Gender_0F_1M, data = clean.data)
+lm.beta(RVS_Faces)
+
+```
+#### Checking Residuals  
+
+```{r}
+plot(nocov_RVS_Faces$residuals)
+mean(nocov_RVS_Faces$residuals) # the mean of the residuals are zero
+t.test(nocov_RVS_Faces$residuals)
+
+par(family = 'serif')
+qqnorm(nocov_RVS_Faces$residuals, frame.plot = FALSE, main=NULL, cex.lab = 1.5, font.lab=2)
+```
+
+
+### Checking for specificity with threat
+
+```{r}
+summary(lm(LVS_0035 ~ LVSBA10 + LVSBA11 + LVSBA13 + LVSBA24 + LVSBA25 + LVSBA32 + LVSBA47, data = clean.data))
+
+```
+
+```{r}
+summary(lm(RVS_0035 ~ RVSBA10 + RVSBA11 + RVSBA13 + RVSBA24 + RVSBA25 + RVSBA32 + RVSBA47, data = clean.data))
+```
+
